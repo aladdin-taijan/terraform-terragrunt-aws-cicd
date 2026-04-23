@@ -27,7 +27,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.0
+          terraform_version: 1.6.6
 
       - name: Setup Terragrunt
         run: |
@@ -51,12 +51,14 @@ jobs:
 
       - name: Run tflint (in dev folder)
         run: |
+          export TF_SKIP_PROVIDER_VERIFY=1        
           cd dev
           tflint --init
           tflint -f compact
 
       - name: Run checkov (in dev folder)
         run: |
+          export TF_SKIP_PROVIDER_VERIFY=1        
           cd dev
           checkov -d . --quiet
 

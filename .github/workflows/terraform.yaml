@@ -1,11 +1,13 @@
-name: 'Terraform CI/CD'
+name: 'Terraform CI/CD with Quality Checks'
 
 on:
   push:
     branches:
+      - master
       - main
   pull_request:
     branches:
+      - master
       - main
 
 permissions:
@@ -16,7 +18,7 @@ jobs:
   terraform:
     name: 'Terraform Plan & Apply'
     runs-on: ubuntu-latest
-    environment: dev   # you can change this according to your Environment
+    environment: dev
 
     steps:
       - name: Checkout code
@@ -33,21 +35,44 @@ jobs:
           chmod +x terragrunt
           sudo mv terragrunt /usr/local/bin/
 
-      - name: Configure AWS Credentials (OIDC)
+      - name: Install tflint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      - name: Install checkov
+        run: pip install checkov
+
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Terragrunt Plan (Dev)
+      - name: Run tflint (in dev folder)
+        run: |
+          cd dev
+          tflint --init
+          tflint -f compact
+
+      - name: Run checkov (in dev folder)
+        run: |
+          cd dev
+          checkov -d . --quiet
+
+      - name: Terraform Validate
+        run: |
+          cd dev
+          terragrunt run-all validate
+
+      - name: Terragrunt Plan (on Pull Request)
         if: github.event_name == 'pull_request'
         run: |
           cd dev
           terragrunt plan -out=tfplan
 
-      - name: Terragrunt Apply (Dev)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Terragrunt Apply (on push to master/main)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
         run: |
           cd dev
           terragrunt apply -auto-approve
